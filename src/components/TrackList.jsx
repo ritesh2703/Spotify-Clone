@@ -1,8 +1,8 @@
 import { usePlayer } from '../context/PlayerContext';
 import { motion } from 'framer-motion';
 
-const TrackList = ({ tracks }) => {
-  const { playTrack, isPlaying, currentTrack, togglePlay } = usePlayer();
+const TrackList = ({ tracks, onTrackClick }) => {
+  const { currentTrack, isPlaying, togglePlay } = usePlayer();
 
   return (
     <div className="w-full rounded-xl overflow-hidden bg-gradient-to-b from-[#121212] to-[#000000] shadow-lg">
@@ -37,7 +37,7 @@ const TrackList = ({ tracks }) => {
               if (currentTrack?.id === track.id) {
                 togglePlay();
               } else {
-                playTrack(track);
+                onTrackClick(track);
               }
             }}
             whileHover={{ 
@@ -45,7 +45,6 @@ const TrackList = ({ tracks }) => {
             }}
             transition={{ duration: 0.2 }}
           >
-            {/* Glow effect for current track */}
             {currentTrack?.id === track.id && (
               <div className="absolute inset-0 bg-green-500 opacity-10 rounded-md pointer-events-none" />
             )}
@@ -94,9 +93,12 @@ const TrackList = ({ tracks }) => {
                 whileHover={{ scale: 1.05 }}
               >
                 <img 
-                  src={track.imageUrl} 
+                  src={track.imageUrl || 'https://png.pngtree.com/png-clipart/20221006/original/pngtree-music-notes-png-image_8660757.png'} 
                   alt={track.title} 
                   className="w-10 h-10 object-cover rounded-sm shadow-md"
+                  onError={(e) => {
+                    e.target.src = 'https://png.pngtree.com/png-clipart/20221006/original/pngtree-music-notes-png-image_8660757.png';
+                  }}
                 />
                 <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-20 transition-opacity rounded-sm" />
               </motion.div>

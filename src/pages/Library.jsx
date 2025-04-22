@@ -1,24 +1,76 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FiPlus, FiMusic, FiArrowLeft } from 'react-icons/fi';
+import { FiPlus, FiMusic, FiArrowLeft, FiSearch } from 'react-icons/fi';
 import { usePlayer } from '../context/PlayerContext';
 import TrackList from '../components/TrackList';
 
+const JAMENDO_API_KEY = 'c3e329e0';
+
 const Library = () => {
   const { 
-    playlists, 
+    playlists = [], 
     viewingPlaylist, 
     viewPlaylist, 
     backToLibrary,
     createPlaylist,
     addToPlaylist,
-    allSongs
+    allSongs = []
   } = usePlayer();
   
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [showAddSongModal, setShowAddSongModal] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    const fetchSongs = async () => {
+      if (searchQuery.trim()) {
+        setIsSearching(true);
+        try {
+          const response = await fetch(
+            `https://api.jamendo.com/v3.0/tracks/?client_id=${JAMENDO_API_KEY}` +
+            `&format=json` +
+            `&search=${encodeURIComponent(searchQuery)}` +
+            `&limit=20`
+          );
+          const data = await response.json();
+          
+          const formattedResults = data.results?.map(track => ({
+            id: track.id,
+            title: track.name,
+            artist: track.artist_name,
+            duration: formatDuration(track.duration),
+            imageUrl: track.image || 'https://imgjam.com/jam/artists/default.png',
+            audioUrl: track.audio
+          })) || [];
+
+          setSearchResults(formattedResults);
+        } catch (error) {
+          console.error('Search error:', error);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      fetchSongs();
+    }, 500);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
+  const formatDuration = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
 
   const handleCreatePlaylist = () => {
     if (newPlaylistName.trim()) {
@@ -34,15 +86,19 @@ const Library = () => {
   };
 
   const handleSelectSong = (song) => {
-    addToPlaylist(selectedPlaylist.id, song);
+    if (selectedPlaylist?.id) {
+      addToPlaylist(selectedPlaylist.id, song);
+    }
     setShowAddSongModal(false);
     setSelectedPlaylist(null);
   };
 
-  // Filter out songs that are already in the playlist
-  const availableSongs = allSongs.filter(song => 
-    !viewingPlaylist?.tracks?.some(track => track.id === song.id)
-  );
+  const availableSongs = showAddSongModal && searchQuery.trim() ? 
+    searchResults : 
+    allSongs.filter(song => {
+      if (!viewingPlaylist?.tracks) return true;
+      return !viewingPlaylist.tracks.some(track => track.id === song.id);
+    });
 
   return (
     <motion.div 
@@ -72,7 +128,7 @@ const Library = () => {
             </button>
           </div>
           
-          {viewingPlaylist.tracks.length > 0 ? (
+          {viewingPlaylist.tracks?.length > 0 ? (
             <TrackList tracks={viewingPlaylist.tracks} />
           ) : (
             <div className="bg-[#2D2D44] rounded-lg p-8 text-center">
@@ -109,7 +165,6 @@ const Library = () => {
             </div>
           </div>
 
-          {/* Create Playlist Form */}
           {showCreateForm && (
             <motion.div 
               className="bg-[#2D2D44] p-4 rounded-lg mb-6"
@@ -136,7 +191,6 @@ const Library = () => {
             </motion.div>
           )}
 
-          {/* Playlists Content */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -153,13 +207,13 @@ const Library = () => {
                   >
                     <div className="relative mb-3">
                       <img 
-                        src={playlist.imageUrl} 
+                        src={playlist.imageUrl || 'https://imgjam.com/jam/artists/default.png'} 
                         alt={playlist.name} 
                         className="w-full aspect-square object-cover rounded-md shadow-lg"
                       />
                     </div>
                     <h3 className="text-white font-medium truncate">{playlist.name}</h3>
-                    <p className="text-[#B2B2B2] text-sm">{playlist.tracks.length} songs</p>
+                    <p className="text-[#B2B2B2] text-sm">{playlist.tracks?.length || 0} songs</p>
                   </motion.div>
                 ))}
               </div>
@@ -180,7 +234,6 @@ const Library = () => {
         </>
       )}
 
-      {/* Add Song Modal */}
       {showAddSongModal && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
           <motion.div 
@@ -199,8 +252,25 @@ const Library = () => {
                 &times;
               </button>
             </div>
-            
-            {availableSongs.length > 0 ? (
+
+            <div className="relative mb-4">
+              <div className="flex items-center bg-[#1A1A2E] rounded px-4 py-2">
+                <FiSearch className="text-[#B2B2B2] mr-2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search for songs..."
+                  className="w-full bg-transparent text-white focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {isSearching ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+              </div>
+            ) : availableSongs.length > 0 ? (
               <div className="space-y-3">
                 {availableSongs.map(song => (
                   <motion.div
@@ -226,7 +296,12 @@ const Library = () => {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-[#B2B2B2]">No songs available to add</p>
+                <p className="text-[#B2B2B2]">
+                  {searchQuery.trim() ? 'No results found' : 'Search for songs to add'}
+                </p>
+                <p className="text-gray-400 text-xs mt-2">
+                  Powered by Jamendo's free music API
+                </p>
               </div>
             )}
           </motion.div>
