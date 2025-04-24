@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { PlayerProvider } from './context/PlayerContext';
 import Sidebar from './components/Sidebar';
 import Player from './components/Player';
 import Home from './pages/Home';
 import Library from './pages/Library';
-import Search from './pages/Search';
 import Login from './pages/Login';
+import Navbar from './components/Navbar';
+import Browse from './pages/Browse';
+import Playlists from './pages/Playlists';
+import Premium from './pages/Premium';
 import { featuredPlaylists, allSongs } from './mockData';
 
 const App = () => {
-  const [activePage, setActivePage] = useState('home');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
+  const [activePage, setActivePage] = useState('home');
+  const location = useLocation();
 
   useEffect(() => {
     const loggedInStatus = localStorage.getItem('spotifyCloneLoggedIn');
@@ -22,6 +27,12 @@ const App = () => {
       setUsername(userData.username);
     }
   }, []);
+
+  useEffect(() => {
+    // Update active page based on current route
+    const path = location.pathname.substring(1) || 'home';
+    setActivePage(path);
+  }, [location]);
 
   const handleLogin = (loggedInUsername) => {
     const userData = { username: loggedInUsername };
@@ -38,41 +49,47 @@ const App = () => {
     setUsername('');
   };
 
-  const renderPage = () => {
-    switch (activePage) {
-      case 'home': return <Home />;
-      case 'search': return <Search />;
-      case 'library': return <Library />;
-      default: return <Home />;
-    }
-  };
-
   if (!isLoggedIn) {
     return <Login onLogin={handleLogin} />;
   }
 
   return (
     <PlayerProvider initialPlaylists={featuredPlaylists} initialSongs={allSongs}>
-      <div className="flex h-screen bg-[#121212] overflow-hidden">
-        {/* Sidebar with proper height calculation */}
-        <div className="hidden md:flex h-[calc(100vh-6rem)]">
-          <Sidebar 
-            activePage={activePage} 
-            setActivePage={setActivePage} 
-            onLogout={handleLogout}
-            username={username}
-          />
+      <div className="flex flex-col h-screen bg-[#121212] overflow-hidden">
+        <Navbar 
+          username={username} 
+          onLogout={handleLogout}
+          activePage={activePage}
+          setActivePage={setActivePage}
+        />
+        
+        <div className="flex flex-1 overflow-hidden">
+          <div className="hidden md:flex h-full">
+            <Sidebar 
+              activePage={activePage} 
+              setActivePage={setActivePage}
+              onLogout={handleLogout}
+              username={username}
+            />
+          </div>
+          
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <main className="flex-1 overflow-y-auto pb-[90px]">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/home" element={<Home />} />
+                <Route path="/library" element={<Library />} />
+                <Route path="/browse" element={<Browse />} />
+                <Route path="/playlists" element={<Playlists />} />
+                <Route path="/premium" element={<Premium />} />
+              </Routes>
+            </main>
+          </div>
         </div>
         
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col">
-          <main className="flex-1 overflow-y-auto pb-24">
-            {renderPage()}
-          </main>
+        <div className="fixed bottom-0 left-0 right-0">
+          <Player />
         </div>
-        
-        {/* Player fixed at bottom */}
-        <Player />
       </div>
     </PlayerProvider>
   );

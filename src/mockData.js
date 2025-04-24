@@ -169,3 +169,72 @@ export const allSongs = [
     imageUrl: 'https://i.scdn.co/image/ab67616d00001e021ae1e6f9e1d7a1f3d3e1f6d9'
   }
 ];
+export const podcasts = [
+  {
+    id: 'pod1',
+    title: 'Tech Today',
+    artist: 'Tech Media Network',
+    album: 'Weekly Episodes',
+    duration: '45:30',
+    imageUrl: 'https://via.placeholder.com/150',
+    audioUrl: 'https://example.com/podcast1.mp3',
+    isPodcast: true
+  },
+  {
+    id: 'pod2',
+    title: 'Science Weekly',
+    artist: 'Science Foundation',
+    album: 'Educational Series',
+    duration: '38:15',
+    imageUrl: 'https://via.placeholder.com/150',
+    audioUrl: 'https://example.com/podcast2.mp3',
+    isPodcast: true
+  }
+];
+
+
+export const playlists = [
+  {
+    id: 1,
+    title: "Chill Vibes",
+    description: "Relaxing tunes for your day",
+    imageUrl: "https://source.unsplash.com/random/300x300/?music,chill",
+  },
+  {
+    id: 2,
+    title: "Workout Mix",
+    description: "Energy boost for your exercise",
+    imageUrl: "https://source.unsplash.com/random/300x300/?music,workout",
+  },
+  // Add more playlists...
+];
+
+export const genres = [
+  {
+    id: 1,
+    name: "Pop",
+    imageUrl: "https://source.unsplash.com/random/300x300/?music,pop",
+  },
+  {
+    id: 2,
+    name: "Rock",
+    imageUrl: "https://source.unsplash.com/random/300x300/?music,rock",
+  },
+  // Add more genres...
+];
+
+export const newReleases = [
+  {
+    id: 1,
+    title: "Summer Hits 2023",
+    artist: "Various Artists",
+    imageUrl: "https://source.unsplash.com/random/300x300/?music,summer",
+  },
+  {
+    id: 2,
+    title: "Midnight Dreams",
+    artist: "The Night Owls",
+    imageUrl: "https://source.unsplash.com/random/300x300/?music,dream",
+  },
+  // Add more new releases...
+];
