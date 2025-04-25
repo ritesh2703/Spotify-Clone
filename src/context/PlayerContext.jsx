@@ -148,7 +148,7 @@ export const PlayerProvider = ({ children }) => {
       id: Date.now().toString(),
       name,
       tracks: [],
-      imageUrl: 'https://imgjam.com/jam/artists/default.png'
+      imageUrl: 'https://purepng.com/public/uploads/large/purepng.com-music-iconsymbolsiconsapple-iosiosios-8-iconsios-8-721522596085b6osz.png'
     };
     setPlaylists([...playlists, newPlaylist]);
     return newPlaylist;

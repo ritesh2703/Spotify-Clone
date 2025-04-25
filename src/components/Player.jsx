@@ -13,7 +13,10 @@ import {
   FaTimes,
   FaPlus,
   FaMinus,
-  FaMusic
+  FaMusic,
+  FaHeadphones,
+  FaRandom,
+  FaRedo
 } from 'react-icons/fa';
 import { BsFillVolumeMuteFill } from 'react-icons/bs';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,11 +40,18 @@ const Player = () => {
     formatTime,
     isMuted,
     toggleMute,
-    viewingPlaylist,
-    playlists,
+    viewingPlaylist = { tracks: [] },
+    playlists = [],
     addToPlaylist,
-    createPlaylist
+    createPlaylist,
+    shuffleQueue,
+    repeatMode,
+    toggleRepeat,
+    setCurrentTrackIndex
   } = usePlayer();
+
+  // Initialize queue with safe fallback
+  const queue = viewingPlaylist?.tracks || [];
 
   const [showLyrics, setShowLyrics] = useState(false);
   const [lyrics, setLyrics] = useState('');
@@ -51,14 +61,14 @@ const Player = () => {
   const [isLoadingLyrics, setIsLoadingLyrics] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [showNowPlaying, setShowNowPlaying] = useState(false);
+  const [showQueue, setShowQueue] = useState(false);
   
   const progressRef = useRef(null);
   const playerRef = useRef(null);
   const playlistNameInputRef = useRef(null);
   const lyricsPopupRef = useRef(null);
-
-  // Get queue from viewing playlist
-  const queue = viewingPlaylist?.tracks || [];
+  const nowPlayingPopupRef = useRef(null);
+  const queuePopupRef = useRef(null);
 
   // Fetch lyrics from Jamendo API
   const fetchLyrics = async () => {
@@ -91,11 +101,17 @@ const Player = () => {
     }
   }, [showLyrics, currentTrack]);
 
-  // Close lyrics popup when clicking outside
+  // Close popups when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (lyricsPopupRef.current && !lyricsPopupRef.current.contains(event.target)) {
         setShowLyrics(false);
+      }
+      if (nowPlayingPopupRef.current && !nowPlayingPopupRef.current.contains(event.target)) {
+        setShowNowPlaying(false);
+      }
+      if (queuePopupRef.current && !queuePopupRef.current.contains(event.target)) {
+        setShowQueue(false);
       }
     };
 
@@ -104,6 +120,21 @@ const Player = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  // Handle shuffle functionality
+  const handleShuffle = () => {
+    if (queue.length > 0) {
+      shuffleQueue();
+    }
+  };
+
+  // Handle track selection from queue
+  const handlePlayTrackFromQueue = (index) => {
+    setCurrentTrackIndex(index);
+    if (!isPlaying) {
+      togglePlay();
+    }
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -146,6 +177,10 @@ const Player = () => {
           e.preventDefault();
           setShowNowPlaying(!showNowPlaying);
           break;
+        case 'KeyQ':
+          e.preventDefault();
+          setShowQueue(!showQueue);
+          break;
         case 'Escape':
           if (isFullscreen) {
             e.preventDefault();
@@ -176,6 +211,7 @@ const Player = () => {
     if (isMinimized) {
       setShowLyrics(false);
       setShowNowPlaying(false);
+      setShowQueue(false);
     }
   };
 
@@ -267,6 +303,14 @@ const Player = () => {
           </button>
           
           <button 
+            onClick={() => setShowQueue(true)}
+            className="text-gray-400 hover:text-white text-sm"
+            disabled={!currentTrack || queue.length === 0}
+          >
+            <FaHeadphones />
+          </button>
+          
+          <button 
             onClick={toggleMinimize}
             className="text-gray-400 hover:text-white text-sm"
           >
@@ -282,8 +326,8 @@ const Player = () => {
       {/* Main Player */}
       <motion.div 
         ref={playerRef}
-        className={`fixed bottom-0 left-0 right-0 flex items-center px-6 bg-gradient-to-br from-[#121212] via-[#181818] to-[#1a1a1a] border-t border-gray-800 shadow-lg z-50 ${
-          isFullscreen ? 'h-screen flex-col justify-center bg-gradient-to-br from-[#0f0f0f] via-[#1a1a1a] to-[#2a2a2a]' : 'h-24'
+        className={`fixed bottom-0 left-0 right-0 flex items-center px-6 bg-gradient-to-br from-[#0a0a0a] via-[#121212] to-[#1a1a1a] border-t border-gray-800 shadow-lg z-50 ${
+          isFullscreen ? 'h-screen flex-col justify-center bg-gradient-to-br from-[#050505] via-[#121212] to-[#1f1f1f]' : 'h-24'
         }`}
         initial={{ y: 100 }}
         animate={{ y: 0 }}
@@ -331,82 +375,6 @@ const Player = () => {
             <div className="text-gray-500 text-sm">No track selected</div>
           )}
         </div>
-
-        {/* Fullscreen Content */}
-        {isFullscreen && (
-          <div className="w-full max-w-4xl px-8 mb-8">
-            {/* Lyrics Display */}
-            {showLyrics && (
-              <div className="mb-6 bg-black bg-opacity-30 p-5 rounded-xl backdrop-blur-sm max-h-96 overflow-y-auto">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-white text-lg font-medium">Lyrics</h3>
-                  <button 
-                    onClick={() => setShowLyrics(false)}
-                    className="text-gray-300 hover:text-white p-1 rounded-full bg-black bg-opacity-50"
-                  >
-                    <FaTimes />
-                  </button>
-                </div>
-                {isLoadingLyrics ? (
-                  <div className="flex justify-center items-center h-32">
-                    <div className="animate-pulse text-gray-400">Loading lyrics...</div>
-                  </div>
-                ) : (
-                  <pre className="text-gray-100 whitespace-pre-wrap font-sans text-center">
-                    {lyrics}
-                  </pre>
-                )}
-              </div>
-            )}
-
-            {/* Next Track Preview */}
-            {queue.length > 0 && !showLyrics && (
-              <div className="mb-8 bg-black bg-opacity-20 p-5 rounded-xl backdrop-blur-sm">
-                <h4 className="text-gray-300 text-sm mb-3 font-medium uppercase tracking-wider">Up Next</h4>
-                <div className="flex items-center p-3 bg-black bg-opacity-30 rounded-lg hover:bg-opacity-40 transition group">
-                  <div className="w-16 h-16 mr-4 rounded overflow-hidden">
-                    <img 
-                      src={queue[0].imageUrl} 
-                      alt={queue[0].title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-md font-medium truncate">{queue[0].title}</p>
-                    <p className="text-gray-300 text-sm truncate">{queue[0].artist}</p>
-                  </div>
-                  <button 
-                    onClick={playNextTrack}
-                    className="text-gray-300 hover:text-white ml-4 p-3 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition"
-                    aria-label="Play next track now"
-                  >
-                    <FaPlay className="text-md" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex justify-center space-x-6">
-              <button 
-                onClick={() => setShowLyrics(!showLyrics)}
-                className={`px-6 py-3 rounded-full flex items-center transition ${
-                  showLyrics ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                <FaMicrophone className="mr-2" />
-                {showLyrics ? 'Hide Lyrics' : 'Show Lyrics'}
-              </button>
-              <button 
-                onClick={() => setShowPlaylistModal(true)}
-                className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-full flex items-center transition"
-              >
-                <FaList className="mr-2" />
-                Add to Playlist
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Player Controls */}
         <div className={`flex flex-col items-center ${isFullscreen ? 'w-full' : 'w-2/4 px-4'}`}>
@@ -458,7 +426,7 @@ const Player = () => {
               onClick={handleProgressClick}
             >
               <div 
-                className="bg-green-500 h-full rounded-full relative"
+                className="bg-gradient-to-r from-green-500 to-green-300 h-full rounded-full relative"
                 style={{ width: `${duration > 0 ? (progress / duration) * 100 : 0}%` }}
               >
                 <motion.div 
@@ -479,6 +447,36 @@ const Player = () => {
         
         {/* Right Controls */}
         <div className={`flex items-center ${isFullscreen ? 'absolute top-6 right-6' : 'justify-end w-1/4'} space-x-4`}>
+          {/* Shuffle and Repeat Controls */}
+          {!isFullscreen && (
+            <>
+              <button 
+                onClick={handleShuffle}
+                className={`text-gray-400 hover:text-white transition ${
+                  queue.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={queue.length === 0}
+                aria-label="Shuffle queue"
+              >
+                <FaRandom size={16} />
+              </button>
+              <button 
+                onClick={toggleRepeat}
+                className={`transition ${
+                  repeatMode === 'off' ? 'text-gray-400' :
+                  repeatMode === 'all' ? 'text-green-500' :
+                  'text-green-500'
+                }`}
+                aria-label={`Repeat ${repeatMode}`}
+              >
+                <FaRedo size={16} />
+                {repeatMode === 'one' && (
+                  <span className="absolute -bottom-1 -right-1 text-xs">1</span>
+                )}
+              </button>
+            </>
+          )}
+
           <div className="flex items-center space-x-2 group">
             <button 
               onClick={toggleMute}
@@ -523,6 +521,15 @@ const Player = () => {
               >
                 <FaMicrophone size={16} />
               </button>
+              
+              <button 
+                onClick={() => setShowQueue(!showQueue)}
+                className="text-gray-400 hover:text-white ml-2 transition"
+                disabled={queue.length === 0}
+                aria-label="Show queue"
+              >
+                <FaHeadphones size={16} />
+              </button>
             </>
           )}
           
@@ -546,6 +553,124 @@ const Player = () => {
             )}
           </button>
         </div>
+
+        {/* Fullscreen Content */}
+        {isFullscreen && (
+          <div className="w-full max-w-4xl px-8 mb-8">
+            {/* Lyrics Display */}
+            {showLyrics && (
+              <div className="mb-6 bg-black bg-opacity-30 p-5 rounded-xl backdrop-blur-sm max-h-96 overflow-y-auto">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-white text-lg font-medium">Lyrics</h3>
+                  <button 
+                    onClick={() => setShowLyrics(false)}
+                    className="text-gray-300 hover:text-white p-1 rounded-full bg-black bg-opacity-50"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+                {isLoadingLyrics ? (
+                  <div className="flex justify-center items-center h-32">
+                    <div className="animate-pulse text-gray-400">Loading lyrics...</div>
+                  </div>
+                ) : (
+                  <pre className="text-gray-100 whitespace-pre-wrap font-sans text-center">
+                    {lyrics}
+                  </pre>
+                )}
+              </div>
+            )}
+
+            {/* Queue Preview */}
+            {queue.length > 0 && !showLyrics && (
+              <div className="mb-8 bg-black bg-opacity-20 p-5 rounded-xl backdrop-blur-sm">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-gray-300 text-sm font-medium uppercase tracking-wider">Up Next</h4>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={handleShuffle}
+                      className="text-gray-400 hover:text-white p-2 rounded-full bg-black bg-opacity-30 hover:bg-opacity-50 transition"
+                      disabled={queue.length === 0}
+                      aria-label="Shuffle queue"
+                    >
+                      <FaRandom size={14} />
+                    </button>
+                    <button 
+                      onClick={toggleRepeat}
+                      className={`p-2 rounded-full transition ${
+                        repeatMode === 'off' ? 'text-gray-400 bg-black bg-opacity-30 hover:bg-opacity-50' :
+                        repeatMode === 'all' ? 'text-green-500 bg-green-900 bg-opacity-30' :
+                        'text-green-500 bg-green-900 bg-opacity-50'
+                      }`}
+                      aria-label="Toggle repeat"
+                    >
+                      <FaRedo size={14} />
+                      {repeatMode === 'one' && (
+                        <span className="absolute -bottom-1 -right-1 text-xs">1</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                  {queue.slice(0, 5).map((track, index) => (
+                    <div 
+                      key={index}
+                      className="flex items-center p-3 bg-black bg-opacity-30 rounded-lg hover:bg-opacity-40 transition group"
+                      onClick={() => handlePlayTrackFromQueue(index)}
+                    >
+                      <div className="w-12 h-12 mr-4 rounded overflow-hidden">
+                        <img 
+                          src={track.imageUrl} 
+                          alt={track.title} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-md font-medium truncate">{track.title}</p>
+                        <p className="text-gray-300 text-sm truncate">{track.artist}</p>
+                      </div>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePlayTrackFromQueue(index);
+                        }}
+                        className="text-gray-300 hover:text-white ml-4 p-2 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition"
+                        aria-label="Play this track next"
+                      >
+                        <FaPlay className="text-xs" />
+                      </button>
+                    </div>
+                  ))}
+                  {queue.length > 5 && (
+                    <div className="text-center text-gray-400 text-sm mt-2">
+                      + {queue.length - 5} more tracks
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex justify-center space-x-6">
+              <button 
+                onClick={() => setShowLyrics(!showLyrics)}
+                className={`px-6 py-3 rounded-full flex items-center transition ${
+                  showLyrics ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                <FaMicrophone className="mr-2" />
+                {showLyrics ? 'Hide Lyrics' : 'Show Lyrics'}
+              </button>
+              <button 
+                onClick={() => setShowPlaylistModal(true)}
+                className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-full flex items-center transition"
+              >
+                <FaList className="mr-2" />
+                Add to Playlist
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Lyrics Popup (Non-Fullscreen) */}
@@ -559,7 +684,7 @@ const Player = () => {
           >
             <motion.div 
               ref={lyricsPopupRef}
-              className="bg-[#282828] rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col border border-gray-700"
+              className="bg-gradient-to-br from-[#181818] to-[#282828] rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col border border-gray-700"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -606,7 +731,8 @@ const Player = () => {
             exit={{ opacity: 0 }}
           >
             <motion.div 
-              className="bg-[#282828] rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col border border-gray-700"
+              ref={nowPlayingPopupRef}
+              className="bg-gradient-to-br from-[#181818] to-[#282828] rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col border border-gray-700"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -653,7 +779,7 @@ const Player = () => {
                         onClick={handleProgressClick}
                       >
                         <div 
-                          className="bg-green-500 h-full rounded-full relative"
+                          className="bg-gradient-to-r from-green-500 to-green-300 h-full rounded-full relative"
                           style={{ width: `${duration > 0 ? (progress / duration) * 100 : 0}%` }}
                         />
                       </div>
@@ -718,6 +844,109 @@ const Player = () => {
         )}
       </AnimatePresence>
 
+      {/* Queue Popup */}
+      <AnimatePresence>
+        {showQueue && !isFullscreen && (
+          <motion.div 
+            className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div 
+              ref={queuePopupRef}
+              className="bg-gradient-to-br from-[#181818] to-[#282828] rounded-xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col border border-gray-700"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+            >
+              <div className="flex justify-between items-center p-5 border-b border-gray-700 bg-gradient-to-r from-[#1a1a1a] to-[#2a2a2a]">
+                <div>
+                  <h3 className="text-white text-xl font-bold">Play Queue</h3>
+                  <p className="text-gray-300 text-sm">
+                    {queue.length} track{queue.length !== 1 ? 's' : ''} in queue
+                  </p>
+                </div>
+                <div className="flex space-x-2">
+                  <button 
+                    onClick={handleShuffle}
+                    className={`text-gray-400 hover:text-white p-2 rounded-full bg-black bg-opacity-30 hover:bg-opacity-50 transition ${
+                      queue.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    disabled={queue.length === 0}
+                    aria-label="Shuffle queue"
+                  >
+                    <FaRandom size={14} />
+                  </button>
+                  <button 
+                    onClick={toggleRepeat}
+                    className={`p-2 rounded-full transition ${
+                      repeatMode === 'off' ? 'text-gray-400 bg-black bg-opacity-30 hover:bg-opacity-50' :
+                      repeatMode === 'all' ? 'text-green-500 bg-green-900 bg-opacity-30' :
+                      'text-green-500 bg-green-900 bg-opacity-50'
+                    }`}
+                    aria-label="Toggle repeat"
+                  >
+                    <FaRedo size={14} />
+                    {repeatMode === 'one' && (
+                      <span className="absolute -bottom-1 -right-1 text-xs">1</span>
+                    )}
+                  </button>
+                  <button 
+                    onClick={() => setShowQueue(false)}
+                    className="text-gray-300 hover:text-white p-2 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition"
+                    aria-label="Close queue"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-4 overflow-y-auto flex-1">
+                {queue.length > 0 ? (
+                  <div className="space-y-2">
+                    {queue.map((track, index) => (
+                      <div 
+                        key={index}
+                        className="flex items-center p-3 bg-[#383838] hover:bg-[#484848] rounded-lg transition cursor-pointer group"
+                        onClick={() => handlePlayTrackFromQueue(index)}
+                      >
+                        <div className="w-12 h-12 mr-4 rounded overflow-hidden">
+                          <img 
+                            src={track.imageUrl} 
+                            alt={track.title} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white text-md font-medium truncate">{track.title}</p>
+                          <p className="text-gray-300 text-sm truncate">{track.artist}</p>
+                        </div>
+                        <button 
+                          className="text-gray-400 hover:text-white ml-4 p-2 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition opacity-0 group-hover:opacity-100"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlayTrackFromQueue(index);
+                          }}
+                          aria-label="Play this track next"
+                        >
+                          <FaPlay className="text-xs" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                    <FaHeadphones size={32} className="mb-4" />
+                    <p>Your queue is empty</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Playlist Modal */}
       <AnimatePresence>
         {showPlaylistModal && (
@@ -728,7 +957,7 @@ const Player = () => {
             exit={{ opacity: 0 }}
           >
             <motion.div 
-              className="bg-[#282828] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col border border-gray-700"
+              className="bg-gradient-to-br from-[#181818] to-[#282828] rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col border border-gray-700"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
