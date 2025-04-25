@@ -1,5 +1,14 @@
+// src/pages/Login.js
 import { useState } from 'react';
-import { FaSpotify } from 'react-icons/fa';
+import { FaSpotify, FaGoogle, FaFacebook } from 'react-icons/fa';
+import { 
+  auth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  googleProvider,
+  facebookProvider
+} from '../firebase';
 
 const Login = ({ onLogin }) => {
   const [email, setEmail] = useState('');
@@ -7,39 +16,51 @@ const Login = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [username, setUsername] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError('');
     
-    if (!email || !password) {
-      setError('Please enter both email and password');
-      return;
-    }
-
-    if (isSignUp && !username) {
-      setError('Please enter a username');
-      return;
-    }
-
-    // In a real app, you would validate against a backend here
-    if (isSignUp) {
-      // Store user data in localStorage
-      const userData = {
-        email,
-        password,
-        username
-      };
-      localStorage.setItem('spotifyUser', JSON.stringify(userData));
-      setError('Account created successfully! Please log in.');
-      setIsSignUp(false);
-    } else {
-      // Check if user exists (for demo purposes)
-      const storedUser = JSON.parse(localStorage.getItem('spotifyUser'));
-      if (storedUser && storedUser.email === email && storedUser.password === password) {
-        onLogin(storedUser.username);
+    try {
+      if (isSignUp) {
+        // Sign up with email/password
+        if (!username) {
+          setError('Please enter a username');
+          return;
+        }
+        
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // For demo, we'll just pass the username to onLogin
+        // In a real app, you'd update the user profile with the username
+        onLogin(username);
       } else {
-        setError('Invalid credentials');
+        // Sign in with email/password
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        // Use email as username for demo
+        onLogin(userCredential.user.email.split('@')[0]);
       }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider) => {
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      // Use displayName if available, otherwise use email prefix
+      onLogin(user.displayName || user.email.split('@')[0]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -54,11 +75,39 @@ const Login = ({ onLogin }) => {
         </h1>
         
         {error && (
-          <div className={`mb-4 p-2 rounded text-sm ${error.includes('success') ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+          <div className={`mb-4 p-2 rounded text-sm bg-red-500 text-white`}>
             {error}
           </div>
         )}
         
+        {/* Add social login buttons */}
+        <div className="flex flex-col space-y-4 mb-6">
+          <button
+            onClick={() => handleSocialLogin(googleProvider)}
+            disabled={isLoading}
+            className="flex items-center justify-center space-x-2 bg-white text-black py-3 px-4 rounded-full font-medium hover:bg-gray-200 transition"
+          >
+            <FaGoogle className="text-red-500" />
+            <span>{isSignUp ? 'Sign up with Google' : 'Continue with Google'}</span>
+          </button>
+          
+          <button
+            onClick={() => handleSocialLogin(facebookProvider)}
+            disabled={isLoading}
+            className="flex items-center justify-center space-x-2 bg-[#3b5998] text-white py-3 px-4 rounded-full font-medium hover:bg-[#344e86] transition"
+          >
+            <FaFacebook />
+            <span>{isSignUp ? 'Sign up with Facebook' : 'Continue with Facebook'}</span>
+          </button>
+        </div>
+        
+        <div className="flex items-center my-6">
+          <div className="flex-grow border-t border-gray-600"></div>
+          <span className="mx-4 text-gray-400">OR</span>
+          <div className="flex-grow border-t border-gray-600"></div>
+        </div>
+        
+        {/* Rest of your existing form remains the same */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {isSignUp && (
             <div>
@@ -106,9 +155,10 @@ const Login = ({ onLogin }) => {
           
           <button
             type="submit"
-            className="w-full py-3 px-4 bg-green-500 hover:bg-green-600 text-black font-bold rounded-full transition duration-200"
+            disabled={isLoading}
+            className="w-full py-3 px-4 bg-green-500 hover:bg-green-600 text-black font-bold rounded-full transition duration-200 disabled:opacity-70"
           >
-            {isSignUp ? 'Sign Up' : 'Log In'}
+            {isLoading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Log In'}
           </button>
         </form>
         
@@ -121,6 +171,7 @@ const Login = ({ onLogin }) => {
                 setError('');
               }}
               className="text-white hover:underline focus:outline-none"
+              disabled={isLoading}
             >
               {isSignUp ? 'Log in' : 'Sign up for Spotify'}
             </button>

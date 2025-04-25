@@ -1,5 +1,6 @@
+// src/App.js
 import { useState, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { PlayerProvider } from './context/PlayerContext';
 import Sidebar from './components/Sidebar';
 import Player from './components/Player';
@@ -11,42 +12,59 @@ import Browse from './pages/Browse';
 import Playlists from './pages/Playlists';
 import Premium from './pages/Premium';
 import { featuredPlaylists, allSongs } from './mockData';
+import { auth } from './firebase';
 
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
   const [activePage, setActivePage] = useState('home');
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const loggedInStatus = localStorage.getItem('spotifyCloneLoggedIn');
-    const userData = JSON.parse(localStorage.getItem('spotifyUser'));
-    
-    if (loggedInStatus === 'true' && userData) {
-      setIsLoggedIn(true);
-      setUsername(userData.username);
-    }
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        setIsLoggedIn(true);
+        setUsername(user.displayName || user.email.split('@')[0]);
+        // Store in localStorage for persistence
+        localStorage.setItem('spotifyCloneLoggedIn', 'true');
+        localStorage.setItem('spotifyUser', JSON.stringify({
+          username: user.displayName || user.email.split('@')[0],
+          email: user.email
+        }));
+      } else {
+        setIsLoggedIn(false);
+        setUsername('');
+        localStorage.removeItem('spotifyCloneLoggedIn');
+        localStorage.removeItem('spotifyUser');
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    // Update active page based on current route
     const path = location.pathname.substring(1) || 'home';
     setActivePage(path);
   }, [location]);
 
   const handleLogin = (loggedInUsername) => {
-    const userData = { username: loggedInUsername };
-    localStorage.setItem('spotifyCloneLoggedIn', 'true');
-    localStorage.setItem('spotifyUser', JSON.stringify(userData));
     setIsLoggedIn(true);
     setUsername(loggedInUsername);
+    navigate('/');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('spotifyCloneLoggedIn');
-    localStorage.removeItem('spotifyUser');
-    setIsLoggedIn(false);
-    setUsername('');
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      setIsLoggedIn(false);
+      setUsername('');
+      localStorage.removeItem('spotifyCloneLoggedIn');
+      localStorage.removeItem('spotifyUser');
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   if (!isLoggedIn) {
@@ -82,6 +100,7 @@ const App = () => {
                 <Route path="/browse" element={<Browse />} />
                 <Route path="/playlists" element={<Playlists />} />
                 <Route path="/premium" element={<Premium />} />
+                <Route path="/login" element={<Login onLogin={handleLogin} />} />
               </Routes>
             </main>
           </div>
